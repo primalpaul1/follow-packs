@@ -9,7 +9,7 @@ import {
   type NostrConnectParams,
 } from '@/hooks/useLoginActions';
 
-const PRIMAL_LOGO_URL = 'https://blossom.ditto.pub/a34d8fd81dbbf096b96ca8860a17984de4f17daca51cf91aa00eff15ba325f6c.jpeg';
+const PRIMAL_LOGO_URL = 'https://blossom.ditto.pub/f25f13c4212c3ca00a1acaa2ee86ed3c053c4469abb71fb84bb6191fde23de97.png';
 
 /** Key used to persist nostrconnect params across mobile navigation */
 export const NOSTR_CONNECT_PARAMS_KEY = 'nostr:connect-params';
@@ -112,22 +112,22 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
   if (isConnecting && !isMobile && qrDataUrl) {
     return (
       <div className={className}>
-        <div className="flex flex-col items-center gap-4 p-6 rounded-2xl border border-white/10 bg-white/[0.03]">
+        <div className="flex flex-col items-center gap-4 p-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm">
           <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-              <img src={PRIMAL_LOGO_URL} alt="Primal" className="w-6 h-6 rounded-full" />
-              <span className="text-sm font-medium text-white/80">Scan with Primal</span>
+            <div className="flex items-center gap-2.5">
+              <img src={PRIMAL_LOGO_URL} alt="Primal" className="w-7 h-7 rounded-full ring-2 ring-cyan-400/30" />
+              <span className="text-sm font-semibold text-white/90">Scan with Primal</span>
             </div>
             <button onClick={handleCancel} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="rounded-xl overflow-hidden shadow-2xl">
+          <div className="rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
             <img src={qrDataUrl} alt="QR Code" className="w-56 h-56" />
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-white/40">
+          <div className="flex items-center gap-2 text-sm text-cyan-300/50">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             <span>Waiting for connection...</span>
           </div>
@@ -145,8 +145,8 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
           onClick={handleCancel}
           className="w-full h-14 px-6 rounded-2xl flex items-center justify-center gap-3 font-semibold text-[15px] transition-all"
           style={{
-            background: 'linear-gradient(135deg, #a855f7, #c084fc, #e879f9)',
-            boxShadow: '0 8px 32px rgba(168, 85, 247, 0.35)',
+            background: 'linear-gradient(135deg, #0c4a6e, #0e7490, #06b6d4)',
+            boxShadow: '0 8px 32px rgba(6, 182, 212, 0.3)',
           }}
         >
           <Loader2 className="w-5 h-5 animate-spin text-white" />
@@ -166,11 +166,11 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
         onClick={handleConnect}
         className="w-full h-14 px-6 rounded-2xl flex items-center justify-center gap-3.5 text-white font-semibold text-[16px] transition-all active:scale-[0.97] hover:brightness-110"
         style={{
-          background: 'linear-gradient(135deg, #a855f7, #c084fc, #e879f9)',
-          boxShadow: '0 8px 32px rgba(168, 85, 247, 0.35), inset 0 1px 0 rgba(255,255,255,0.2)',
+          background: 'linear-gradient(135deg, #0c4a6e, #0e7490, #06b6d4)',
+          boxShadow: '0 8px 32px rgba(6, 182, 212, 0.3), inset 0 1px 0 rgba(255,255,255,0.12)',
         }}
       >
-        <img src={PRIMAL_LOGO_URL} alt="Primal" className="w-7 h-7 rounded-full shadow-lg" />
+        <img src={PRIMAL_LOGO_URL} alt="Primal" className="w-8 h-8 rounded-full ring-2 ring-white/20 shadow-lg" />
         <span>Log in with Primal</span>
         {isMobile && <ExternalLink className="w-4 h-4 opacity-50" />}
       </button>
