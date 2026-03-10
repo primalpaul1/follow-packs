@@ -1,19 +1,19 @@
 import { useState, useCallback } from 'react';
-import type { NostrMetadata, NostrEvent } from '@nostrify/nostrify';
+import type { NostrMetadata } from '@nostrify/nostrify';
 import { NSchema as n } from '@nostrify/nostrify';
-import { useNostr } from '@nostrify/react';
 
 export interface UserSearchResult {
   pubkey: string;
   metadata?: NostrMetadata;
 }
 
+const PRIMAL_API = 'https://cache2.primal.net/api';
+
 /**
  * Hook for searching Nostr users by name.
- * Uses a relay query with search filter for user discovery.
+ * Uses the Primal caching API for fast, reliable search.
  */
 export function useUserSearch() {
-  const { nostr } = useNostr();
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -26,37 +26,47 @@ export function useUserSearch() {
     setIsSearching(true);
 
     try {
-      // Use relay search capability to find user profiles
-      const searchRelay = nostr.relay('wss://relay.nostr.band');
+      const response = await fetch(PRIMAL_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(["user_search", { query, limit: 10 }]),
+        signal: AbortSignal.timeout(8000),
+      });
 
-      const events: NostrEvent[] = await searchRelay.query(
-        [{ kinds: [0], search: query, limit: 10 }],
-        { signal: AbortSignal.timeout(5000) },
-      );
+      const data = await response.json();
 
+      // Primal returns an array of Nostr events
+      // Kind 0 events contain the user metadata
       const parsed: UserSearchResult[] = [];
 
-      for (const event of events) {
-        try {
-          const metadata = n.json().pipe(n.metadata()).parse(event.content);
-          parsed.push({
-            pubkey: event.pubkey,
-            metadata,
-          });
-        } catch {
-          // Skip unparseable metadata
-          parsed.push({ pubkey: event.pubkey });
+      if (Array.isArray(data)) {
+        for (const event of data) {
+          if (event.kind === 0 && event.pubkey && event.content) {
+            try {
+              const metadata = n.json().pipe(n.metadata()).parse(event.content);
+              parsed.push({
+                pubkey: event.pubkey,
+                metadata,
+              });
+            } catch {
+              parsed.push({ pubkey: event.pubkey });
+            }
+          }
         }
       }
 
       setResults(parsed);
     } catch (err) {
+      // Silently handle abort errors (user typed more characters)
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.error('User search error:', err);
       setResults([]);
     } finally {
       setIsSearching(false);
     }
-  }, [nostr]);
+  }, []);
 
   const clearResults = useCallback(() => {
     setResults([]);
