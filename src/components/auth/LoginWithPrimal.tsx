@@ -8,14 +8,10 @@ import {
   type NostrConnectParams,
 } from '@/hooks/useLoginActions';
 
-/** Check if running on actual mobile device */
 function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
-
-// Primal purple
-const PRIMAL_COLOR = '#6366F1';
 
 interface LoginWithPrimalProps {
   onLogin?: () => void;
@@ -30,34 +26,23 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
 
   const isMobile = isMobileDevice();
 
-  // Start the nostrconnect flow
   const handleConnect = useCallback(() => {
     setError(null);
     const relayUrl = login.getRelayUrl();
     const params = generateNostrConnectParams([relayUrl]);
     setConnectParams(params);
     setIsConnecting(true);
-
     const uri = generateNostrConnectURI(params, 'Follow Packs');
-
-    // On mobile, open the nostrconnect:// URI which triggers Primal (or any signer)
-    if (isMobile) {
-      window.location.href = uri;
-    }
+    if (isMobile) window.location.href = uri;
   }, [login, isMobile]);
 
-  // Listen for the signer's response once params are generated
   useEffect(() => {
     if (!connectParams || !isConnecting) return;
-
     let cancelled = false;
-
     const listenForConnection = async () => {
       try {
         await login.nostrconnect(connectParams);
-        if (!cancelled) {
-          onLogin?.();
-        }
+        if (!cancelled) onLogin?.();
       } catch (err) {
         if (!cancelled) {
           console.error('Nostrconnect failed:', err);
@@ -67,15 +52,10 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
         }
       }
     };
-
     listenForConnection();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [connectParams, isConnecting, login, onLogin]);
 
-  // Cancel connection
   const handleCancel = useCallback(() => {
     setIsConnecting(false);
     setConnectParams(null);
@@ -88,14 +68,13 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
         <Button
           variant="outline"
           size="lg"
-          className="w-full gap-3 h-12 border-2 relative overflow-hidden"
-          style={{ borderColor: `${PRIMAL_COLOR}30` }}
+          className="w-full gap-3 h-13 rounded-2xl border-cyan-400/20 bg-cyan-400/5 hover:bg-cyan-400/10 transition-all"
           onClick={handleCancel}
         >
-          <Loader2 className="w-5 h-5 animate-spin" style={{ color: PRIMAL_COLOR }} />
-          <span className="text-sm font-medium">Waiting for Primal...</span>
+          <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+          <span className="text-sm font-medium text-cyan-300">Waiting for Primal...</span>
         </Button>
-        <p className="text-xs text-muted-foreground text-center mt-2">
+        <p className="text-xs text-white/30 text-center mt-2.5">
           {isMobile ? 'Approve in Primal, then return here' : 'Open Primal on your phone and approve'}
         </p>
       </div>
@@ -104,28 +83,26 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
 
   return (
     <div className={className}>
-      <Button
+      <button
         onClick={handleConnect}
-        size="lg"
-        className="w-full gap-3 h-12 text-white font-semibold shadow-lg transition-all hover:shadow-xl active:scale-[0.98]"
+        className="w-full h-13 px-6 rounded-2xl flex items-center justify-center gap-3 text-white font-semibold text-[15px] transition-all active:scale-[0.98] hover:shadow-2xl hover:shadow-cyan-500/20"
         style={{
-          background: `linear-gradient(135deg, ${PRIMAL_COLOR}, #8B5CF6)`,
+          background: 'linear-gradient(135deg, #06b6d4, #0ea5e9, #38bdf8)',
+          boxShadow: '0 8px 32px rgba(14, 165, 233, 0.3), inset 0 1px 0 rgba(255,255,255,0.15)',
         }}
       >
         <PrimalLogo />
-        Log in with Primal
-        {isMobile && <ExternalLink className="w-4 h-4 opacity-60" />}
-      </Button>
-      {error && (
-        <p className="text-xs text-destructive text-center mt-2">{error}</p>
-      )}
+        <span>Log in with Primal</span>
+        {isMobile && <ExternalLink className="w-4 h-4 opacity-50" />}
+      </button>
+      {error && <p className="text-xs text-red-400 text-center mt-2">{error}</p>}
     </div>
   );
 }
 
 function PrimalLogo() {
   return (
-    <svg width="22" height="22" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="24" height="24" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M64 16C37.5 16 16 37.5 16 64C16 90.5 37.5 112 64 112C90.5 112 112 90.5 112 64C112 37.5 90.5 16 64 16ZM80 72C80 76.4 76.4 80 72 80H56C51.6 80 48 76.4 48 72V56C48 51.6 51.6 48 56 48H72C76.4 48 80 51.6 80 56V72Z"
         fill="currentColor"

@@ -34,9 +34,9 @@ export function UserCard({ pubkey, compact }: UserCardProps) {
   if (compact) {
     return (
       <div className="flex items-center gap-3 py-1">
-        <Avatar className="w-9 h-9 shrink-0 border border-border/50">
+        <Avatar className="w-9 h-9 shrink-0 border border-border/40 shadow-sm">
           <AvatarImage src={metadata?.picture} alt={displayName} />
-          <AvatarFallback className="text-xs font-medium bg-primary/5 text-primary">
+          <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-cyan-500/10 to-sky-500/10 text-primary">
             {displayName.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -52,18 +52,16 @@ export function UserCard({ pubkey, compact }: UserCardProps) {
 
   return (
     <div className="flex items-center gap-3 py-2">
-      <Avatar className="w-11 h-11 shrink-0 border border-border/50">
+      <Avatar className="w-11 h-11 shrink-0 border border-border/40 shadow-sm">
         <AvatarImage src={metadata?.picture} alt={displayName} />
-        <AvatarFallback className="text-sm font-medium bg-primary/5 text-primary">
+        <AvatarFallback className="text-sm font-semibold bg-gradient-to-br from-cyan-500/10 to-sky-500/10 text-primary">
           {displayName.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold truncate">{displayName}</p>
-        {metadata?.nip05 && (
-          <p className="text-xs text-muted-foreground truncate">{metadata.nip05}</p>
-        )}
-        <p className="text-xs text-muted-foreground/60 font-mono truncate">{shortNpub}</p>
+        {metadata?.nip05 && <p className="text-xs text-muted-foreground truncate">{metadata.nip05}</p>}
+        <p className="text-xs text-muted-foreground/50 font-mono truncate">{shortNpub}</p>
       </div>
     </div>
   );
