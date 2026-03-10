@@ -1,116 +1,114 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useNostrLogin } from '@nostrify/react/login';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { nip19 } from 'nostr-tools';
 import { Button } from '@/components/ui/button';
+import { useLoginActions, type NostrConnectParams } from '@/hooks/useLoginActions';
+import { NOSTR_CONNECT_PARAMS_KEY } from '@/components/auth/LoginWithPrimal';
 
-// Storage key must match the one in App.tsx NostrLoginProvider
-const LOGINS_STORAGE_KEY = 'nostr:login';
-
+/**
+ * This page is the callback target after a mobile NIP-46 nostrconnect flow.
+ *
+ * What happens:
+ * 1. Original tab: user taps "Log in with Primal" → params are saved to localStorage → navigates to nostrconnect:// URI
+ * 2. Primal opens, user approves → Primal sends kind 24133 response to relay → redirects browser to this callback URL
+ * 3. This page: reads the saved params from localStorage → listens on relay for the kind 24133 response → completes login
+ * 4. After login completes, redirects to home
+ */
 export function RemoteLoginSuccess() {
   const navigate = useNavigate();
-  const { logins } = useNostrLogin();
-  const [checkCount, setCheckCount] = useState(0);
-  const [status, setStatus] = useState<'checking' | 'success' | 'timeout'>('checking');
+  const login = useLoginActions();
+  const [status, setStatus] = useState<'connecting' | 'success' | 'error'>('connecting');
+  const [errorMessage, setErrorMessage] = useState('');
+  const attemptedRef = useRef(false);
 
-  // Check localStorage directly as a fallback
-  const checkLocalStorage = useCallback(() => {
-    try {
-      const stored = localStorage.getItem(LOGINS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return Array.isArray(parsed) && parsed.length > 0;
+  useEffect(() => {
+    // Only attempt once
+    if (attemptedRef.current) return;
+    attemptedRef.current = true;
+
+    const completeLogin = async () => {
+      // Read the saved connect params from localStorage
+      const stored = localStorage.getItem(NOSTR_CONNECT_PARAMS_KEY);
+      if (!stored) {
+        setStatus('error');
+        setErrorMessage('No pending login session found. Please go back and try again.');
+        return;
       }
-    } catch {
-      // Ignore parse errors
-    }
-    return false;
-  }, []);
 
-  // Check if logged in via React state or localStorage
-  const isLoggedIn = logins.length > 0 || checkLocalStorage();
+      // Clean up immediately so we don't try again on re-render
+      localStorage.removeItem(NOSTR_CONNECT_PARAMS_KEY);
 
-  useEffect(() => {
-    if (isLoggedIn) {
-      setStatus('success');
-      const timer = setTimeout(() => {
-        // Try to close this tab (works if opened by signer app)
-        window.close();
-        // If we're still here, redirect to home
-        navigate('/', { replace: true });
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
+      try {
+        const parsed = JSON.parse(stored);
 
-    // Check up to 20 times (10 seconds total) for the session to become active
-    if (checkCount < 20) {
-      const timer = setTimeout(() => {
-        setCheckCount(prev => prev + 1);
-      }, 500);
-      return () => clearTimeout(timer);
-    } else {
-      setStatus('timeout');
-    }
-  }, [isLoggedIn, checkCount, navigate, checkLocalStorage]);
-
-  // Listen for storage events (in case login is added from another context)
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === LOGINS_STORAGE_KEY && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setStatus('success');
-            setTimeout(() => {
-              window.close();
-              navigate('/', { replace: true });
-            }, 1500);
-          }
-        } catch {
-          // Ignore parse errors
+        // Reconstruct the NostrConnectParams (deserialize nsec back to Uint8Array)
+        const decoded = nip19.decode(parsed.clientNsec);
+        if (decoded.type !== 'nsec') {
+          throw new Error('Invalid stored client key');
         }
+
+        const params: NostrConnectParams = {
+          clientSecretKey: decoded.data,
+          clientPubkey: parsed.clientPubkey,
+          secret: parsed.secret,
+          relays: parsed.relays,
+        };
+
+        // Complete the nostrconnect handshake — this will listen on the relay
+        // for the kind 24133 response that Primal already sent
+        await login.nostrconnect(params);
+
+        setStatus('success');
+
+        // Redirect to home after brief success animation
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 1200);
+      } catch (err) {
+        console.error('Remote login completion failed:', err);
+        setStatus('error');
+        setErrorMessage(
+          err instanceof Error ? err.message : 'Failed to complete login. Please try again.'
+        );
       }
     };
 
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, [navigate]);
+    completeLogin();
+  }, [login, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="text-center space-y-6 max-w-md">
-        {status === 'checking' && (
+      <div className="text-center space-y-6 max-w-sm">
+        {status === 'connecting' && (
           <>
-            <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin" />
+            <Loader2 className="w-14 h-14 mx-auto text-primary animate-spin" />
             <h1 className="text-2xl font-bold">Completing Login...</h1>
-            <p className="text-muted-foreground">Verifying your remote signer connection</p>
+            <p className="text-muted-foreground text-sm">
+              Connecting to your Primal account
+            </p>
           </>
         )}
 
         {status === 'success' && (
           <>
-            <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
-            <h1 className="text-2xl font-bold">Login Successful!</h1>
-            <p className="text-muted-foreground">Redirecting you to the app...</p>
+            <CheckCircle className="w-14 h-14 mx-auto text-emerald-500" />
+            <h1 className="text-2xl font-bold">You&apos;re in!</h1>
+            <p className="text-muted-foreground text-sm">Redirecting...</p>
           </>
         )}
 
-        {status === 'timeout' && (
+        {status === 'error' && (
           <>
-            <XCircle className="w-16 h-16 mx-auto text-yellow-500" />
-            <h1 className="text-2xl font-bold">Session Not Detected</h1>
-            <p className="text-muted-foreground">The login session wasn't found. This can happen if:</p>
-            <ul className="text-muted-foreground text-sm text-left list-disc list-inside space-y-1">
-              <li>The signer app didn't complete authorization</li>
-              <li>You opened this page in a different browser</li>
-              <li>The session expired</li>
-            </ul>
+            <XCircle className="w-14 h-14 mx-auto text-amber-500" />
+            <h1 className="text-2xl font-bold">Connection Issue</h1>
+            <p className="text-muted-foreground text-sm">{errorMessage}</p>
             <Button
               onClick={() => navigate('/', { replace: true })}
               size="lg"
               className="mt-4"
             >
-              Go to Home
+              Go Back
             </Button>
           </>
         )}

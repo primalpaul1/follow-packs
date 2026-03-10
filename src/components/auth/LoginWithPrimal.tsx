@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Loader2, ExternalLink, X } from 'lucide-react';
 import QRCode from 'qrcode';
+import { nip19 } from 'nostr-tools';
 import {
   useLoginActions,
   generateNostrConnectParams,
@@ -10,9 +11,22 @@ import {
 
 const PRIMAL_LOGO_URL = 'https://blossom.ditto.pub/a34d8fd81dbbf096b96ca8860a17984de4f17daca51cf91aa00eff15ba325f6c.jpeg';
 
+/** Key used to persist nostrconnect params across mobile navigation */
+export const NOSTR_CONNECT_PARAMS_KEY = 'nostr:connect-params';
+
 function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/** Serialize params to JSON-safe object (Uint8Array → nsec) */
+function serializeParams(params: NostrConnectParams): string {
+  return JSON.stringify({
+    clientNsec: nip19.nsecEncode(params.clientSecretKey),
+    clientPubkey: params.clientPubkey,
+    secret: params.secret,
+    relays: params.relays,
+  });
 }
 
 interface LoginWithPrimalProps {
@@ -24,7 +38,6 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
   const login = useLoginActions();
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectParams, setConnectParams] = useState<NostrConnectParams | null>(null);
-  const [nostrConnectUri, setNostrConnectUri] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
@@ -39,14 +52,16 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
     const uri = generateNostrConnectURI(params, 'Follow Packs');
 
     setConnectParams(params);
-    setNostrConnectUri(uri);
     setIsConnecting(true);
 
     if (isMobile) {
-      // On mobile, open the nostrconnect:// URI to launch Primal
+      // Save params to localStorage so the callback page can complete the handshake.
+      // The listener on this page will be destroyed when we navigate away,
+      // so RemoteLoginSuccess will pick up these params and finish the connection.
+      localStorage.setItem(NOSTR_CONNECT_PARAMS_KEY, serializeParams(params));
       window.location.href = uri;
     } else {
-      // On desktop, generate QR code
+      // On desktop, generate QR code and keep listening here
       try {
         const dataUrl = await QRCode.toDataURL(uri, {
           width: 240,
@@ -60,9 +75,9 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
     }
   }, [login, isMobile]);
 
-  // Listen for the signer's response
+  // Listen for the signer's response (desktop only — on mobile the page unloads)
   useEffect(() => {
-    if (!connectParams || !isConnecting) return;
+    if (!connectParams || !isConnecting || isMobile) return;
 
     const listenForConnection = async () => {
       try {
@@ -82,15 +97,15 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
     };
 
     listenForConnection();
-  }, [connectParams, isConnecting, login, onLogin]);
+  }, [connectParams, isConnecting, isMobile, login, onLogin]);
 
   const handleCancel = useCallback(() => {
     cancelledRef.current = true;
     setIsConnecting(false);
     setConnectParams(null);
-    setNostrConnectUri('');
     setQrDataUrl('');
     setError(null);
+    localStorage.removeItem(NOSTR_CONNECT_PARAMS_KEY);
   }, []);
 
   // Desktop QR code view
@@ -122,7 +137,7 @@ export function LoginWithPrimal({ onLogin, className }: LoginWithPrimalProps) {
     );
   }
 
-  // Mobile waiting state
+  // Mobile waiting state (shown briefly before navigation)
   if (isConnecting && isMobile) {
     return (
       <div className={className}>
