@@ -143,7 +143,8 @@ export default function CreateFollowPack() {
       if (url) { setCoverImageUrl(url); toast({ title: 'Image uploaded' }); }
     } catch (err) {
       console.error('Upload error:', err);
-      toast({ title: 'Upload failed', variant: 'destructive' });
+      const message = err instanceof Error ? err.message : 'Could not upload the image. Try again.';
+      toast({ title: 'Upload failed', description: message, variant: 'destructive' });
     }
   }, [uploadFile, toast]);
 

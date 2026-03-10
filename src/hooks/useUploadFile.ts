@@ -12,15 +12,32 @@ export function useUploadFile() {
         throw new Error('Must be logged in to upload files');
       }
 
-      const uploader = new BlossomUploader({
-        servers: [
-          'https://blossom.primal.net/',
-        ],
-        signer: user.signer,
-      });
+      // Try multiple Blossom servers for reliability.
+      // NIP-46 signers (Primal bunker) may be slower to sign,
+      // so we try servers that are more tolerant of timing.
+      const servers = [
+        'https://blossom.primal.net/',
+        'https://nostr.download/',
+      ];
 
-      const tags = await uploader.upload(file);
-      return tags;
+      let lastError: Error | null = null;
+
+      for (const server of servers) {
+        try {
+          const uploader = new BlossomUploader({
+            servers: [server],
+            signer: user.signer,
+          });
+
+          const tags = await uploader.upload(file);
+          return tags;
+        } catch (err) {
+          console.warn(`Blossom upload to ${server} failed:`, err);
+          lastError = err instanceof Error ? err : new Error(String(err));
+        }
+      }
+
+      throw lastError ?? new Error('Upload failed on all servers');
     },
   });
 }
