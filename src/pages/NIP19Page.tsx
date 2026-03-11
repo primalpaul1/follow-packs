@@ -1,6 +1,7 @@
 import { nip19 } from 'nostr-tools';
 import { useParams } from 'react-router-dom';
 import NotFound from './NotFound';
+import { PackDetail } from '@/components/PackDetail';
 
 export function NIP19Page() {
   const { nip19: identifier } = useParams<{ nip19: string }>();
@@ -32,11 +33,15 @@ export function NIP19Page() {
       // AI agent should implement event view here
       return <div>Event placeholder</div>;
 
-    case 'naddr':
-      // AI agent should implement addressable event view here
-      return <div>Addressable event placeholder</div>;
+    case 'naddr': {
+      const { pubkey, identifier: dTag, kind } = decoded.data;
+      if (kind === 39089) {
+        return <PackDetail pubkey={pubkey} identifier={dTag} />;
+      }
+      return <div>Unsupported event kind</div>;
+    }
 
     default:
       return <NotFound />;
   }
-} 
+}

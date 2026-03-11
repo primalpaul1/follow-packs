@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { useSeoMeta } from '@unhead/react';
 import { nip19 } from 'nostr-tools';
-import { Users, ImagePlus, X, Upload, Loader2, ClipboardPaste, AlertCircle, CheckCircle2, Search, Plus, ChevronUp, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, ImagePlus, X, Upload, Loader2, ClipboardPaste, AlertCircle, CheckCircle2, Search, Plus, ChevronUp, ChevronDown, Eye } from 'lucide-react';
 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
@@ -82,6 +83,7 @@ export default function CreateFollowPack() {
   const [bulkInput, setBulkInput] = useState('');
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [published, setPublished] = useState(false);
+  const [publishedDTag, setPublishedDTag] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showBulkInput, setShowBulkInput] = useState(false);
 
@@ -187,6 +189,7 @@ export default function CreateFollowPack() {
     for (const entry of entries) tags.push(['p', entry.pubkey]);
     try {
       await publishEvent({ kind: FOLLOW_LIST_KIND, content: '', tags, created_at: Math.floor(Date.now() / 1000) });
+      setPublishedDTag(id);
       setPublished(true);
       toast({ title: 'Follow Pack published!' });
     } catch (err) {
@@ -197,7 +200,7 @@ export default function CreateFollowPack() {
 
   const handleCreateAnother = useCallback(() => {
     setName(''); setDescription(''); setCoverImageUrl(''); setEntries([]); setBulkInput('');
-    setParseErrors([]); setPublished(false); setSearchQuery(''); clearResults(); setShowBulkInput(false);
+    setParseErrors([]); setPublished(false); setPublishedDTag(''); setSearchQuery(''); clearResults(); setShowBulkInput(false);
   }, [clearResults]);
 
   // ── Logged-out state ──
@@ -264,7 +267,14 @@ export default function CreateFollowPack() {
             <p className="text-cyan-100/60 text-lg max-w-md mx-auto">
               Your Follow Pack <span className="text-white font-semibold">&ldquo;{name}&rdquo;</span> with {entries.length} user{entries.length > 1 ? 's' : ''} is now live on Nostr.
             </p>
-            <div className="pt-4">
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+              {user && publishedDTag && (
+                <Button asChild size="lg" className="gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white border-0 shadow-lg">
+                  <Link to={`/${nip19.naddrEncode({ kind: FOLLOW_LIST_KIND, pubkey: user.pubkey, identifier: publishedDTag })}`}>
+                    <Eye className="w-5 h-5" /> View Pack
+                  </Link>
+                </Button>
+              )}
               <Button onClick={handleCreateAnother} variant="outline" size="lg" className="border-white/15 text-white hover:bg-white/10">
                 Create Another
               </Button>
@@ -281,12 +291,12 @@ export default function CreateFollowPack() {
       {/* Header */}
       <header className="border-b bg-card/80 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-sky-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
               <Users className="w-[18px] h-[18px] text-white" />
             </div>
             <h1 className="text-lg font-bold tracking-tight">Follow Packs</h1>
-          </div>
+          </Link>
           <LoginArea className="max-w-60" />
         </div>
       </header>

@@ -3,6 +3,8 @@ import { useNostrLogin } from '@nostrify/react/login';
 import { useQuery } from '@tanstack/react-query';
 import { NSchema as n, NostrEvent, NostrMetadata } from '@nostrify/nostrify';
 
+const PRIMAL_API = 'https://cache2.primal.net/api';
+
 export interface Account {
   id: string;
   pubkey: string;
@@ -17,10 +19,47 @@ export function useLoggedInAccounts() {
   const { data: authors = [] } = useQuery({
     queryKey: ['nostr', 'logins', logins.map((l) => l.id).join(';')],
     queryFn: async () => {
-      const events = await nostr.query(
-        [{ kinds: [0], authors: logins.map((l) => l.pubkey) }],
-        { signal: AbortSignal.timeout(1500) },
-      );
+      const pubkeys = logins.map((l) => l.pubkey);
+      let events: NostrEvent[] = [];
+
+      // Try Primal cache first
+      try {
+        const primalEvents: NostrEvent[] = [];
+        await Promise.all(pubkeys.map(async (pubkey) => {
+          const response = await fetch(PRIMAL_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(['user_profile', { pubkey }]),
+            signal: AbortSignal.timeout(4000),
+          });
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            for (const event of data) {
+              if (event.kind === 0 && event.pubkey === pubkey) {
+                primalEvents.push(event);
+              }
+            }
+          }
+        }));
+        events = primalEvents;
+      } catch {
+        // Fall through to relay
+      }
+
+      // Fall back to relays for any missing profiles
+      const foundPubkeys = new Set(events.map((e) => e.pubkey));
+      const missingPubkeys = pubkeys.filter((pk) => !foundPubkeys.has(pk));
+      if (missingPubkeys.length > 0) {
+        try {
+          const relayEvents = await nostr.query(
+            [{ kinds: [0], authors: missingPubkeys }],
+            { signal: AbortSignal.timeout(5000) },
+          );
+          events = [...events, ...relayEvents];
+        } catch {
+          // ignore
+        }
+      }
 
       return logins.map(({ id, pubkey }): Account => {
         const event = events.find((e) => e.pubkey === pubkey);
@@ -32,7 +71,7 @@ export function useLoggedInAccounts() {
         }
       });
     },
-    retry: 3,
+    retry: 2,
   });
 
   // Current user is the first login
