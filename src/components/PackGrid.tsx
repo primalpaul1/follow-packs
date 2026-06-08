@@ -1,12 +1,13 @@
 import { type NostrEvent } from '@nostrify/nostrify';
 import { Loader2, Users } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useFollowPacks, type PackFilter } from '@/hooks/useFollowPacks';
 import { PackCard } from './PackCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const FILTER_OPTIONS: { value: PackFilter; label: string; requiresLogin: boolean }[] = [
   { value: 'all', label: 'All Packs', requiresLogin: false },
@@ -33,9 +34,32 @@ function SkeletonCard() {
   );
 }
 
+const VALID_FILTERS: PackFilter[] = ['all', 'following', 'includes-me', 'my-packs'];
+
 export function PackGrid() {
   const { user } = useCurrentUser();
-  const [filter, setFilter] = useState<PackFilter>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParam = searchParams.get('filter') as PackFilter | null;
+  const [filter, setFilter] = useState<PackFilter>(
+    filterParam && VALID_FILTERS.includes(filterParam) ? filterParam : 'all'
+  );
+
+  // Sync URL param to state on mount / navigation
+  useEffect(() => {
+    if (filterParam && VALID_FILTERS.includes(filterParam) && filterParam !== filter) {
+      setFilter(filterParam);
+    }
+  }, [filterParam, filter]);
+
+  // Update URL when filter changes
+  const handleFilterChange = (newFilter: PackFilter) => {
+    setFilter(newFilter);
+    if (newFilter === 'all') {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ filter: newFilter }, { replace: true });
+    }
+  };
 
   const {
     data,
@@ -65,7 +89,7 @@ export function PackGrid() {
           return (
             <button
               key={opt.value}
-              onClick={() => !disabled && setFilter(opt.value)}
+              onClick={() => !disabled && handleFilterChange(opt.value)}
               disabled={disabled}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                 filter === opt.value

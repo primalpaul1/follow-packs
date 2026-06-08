@@ -267,7 +267,7 @@ export default function CreateFollowPack() {
             <p className="text-cyan-100/60 text-lg max-w-md mx-auto">
               Your Follow Pack <span className="text-white font-semibold">&ldquo;{name}&rdquo;</span> with {entries.length} user{entries.length > 1 ? 's' : ''} is now live on Nostr.
             </p>
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+             <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
               {user && publishedDTag && (
                 <Button asChild size="lg" className="gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white border-0 shadow-lg">
                   <Link to={`/${nip19.naddrEncode({ kind: FOLLOW_LIST_KIND, pubkey: user.pubkey, identifier: publishedDTag })}`}>
@@ -275,6 +275,11 @@ export default function CreateFollowPack() {
                   </Link>
                 </Button>
               )}
+              <Button asChild variant="outline" size="lg" className="gap-2 border-white/15 text-white hover:bg-white/10">
+                <Link to="/?filter=my-packs">
+                  <Users className="w-4 h-4" /> My Packs
+                </Link>
+              </Button>
               <Button onClick={handleCreateAnother} variant="outline" size="lg" className="border-white/15 text-white hover:bg-white/10">
                 Create Another
               </Button>
