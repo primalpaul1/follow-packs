@@ -1,9 +1,10 @@
 import { type NostrEvent } from '@nostrify/nostrify';
 import { nip19 } from 'nostr-tools';
-import { Link } from 'react-router-dom';
-import { Users, Clock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Users, Clock, Pencil } from 'lucide-react';
 
 import { useAuthor } from '@/hooks/useAuthor';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { parsePackEvent } from '@/hooks/useFollowPack';
 import { genUserName } from '@/lib/genUserName';
 import { MemberAvatarStack } from './MemberAvatarStack';
@@ -25,11 +26,14 @@ function timeAgo(timestamp: number): string {
 export function PackCard({ event }: { event: NostrEvent }) {
   const { title, description, image, members } = parsePackEvent(event);
   const { data: authorData } = useAuthor(event.pubkey);
+  const { user } = useCurrentUser();
+  const navigate = useNavigate();
   const authorMeta = authorData?.metadata;
   const authorName = authorMeta?.display_name || authorMeta?.name || genUserName(event.pubkey);
 
   const dTag = event.tags.find(([t]) => t === 'd')?.[1] ?? '';
   const naddr = nip19.naddrEncode({ kind: 39089, pubkey: event.pubkey, identifier: dTag });
+  const isOwner = user?.pubkey === event.pubkey;
 
   return (
     <Link
@@ -53,6 +57,22 @@ export function PackCard({ event }: { event: NostrEvent }) {
             {title || 'Untitled Pack'}
           </h3>
         </div>
+
+        {/* Edit button overlay — only for the pack owner */}
+        {isOwner && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(`/create?edit=${encodeURIComponent(dTag)}&p=${encodeURIComponent(event.pubkey)}`);
+            }}
+            className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/70 hover:scale-110 z-10"
+            title="Edit pack"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       <div className="p-4 space-y-3">

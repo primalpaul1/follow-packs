@@ -1,14 +1,15 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSeoMeta } from '@unhead/react';
 import { nip19 } from 'nostr-tools';
-import { Link } from 'react-router-dom';
-import { Users, ImagePlus, X, Upload, Loader2, ClipboardPaste, AlertCircle, CheckCircle2, Search, Plus, ChevronUp, ChevronDown, Eye } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Users, ImagePlus, X, Upload, Loader2, ClipboardPaste, AlertCircle, CheckCircle2, Search, Plus, ChevronUp, ChevronDown, Eye, Pencil } from 'lucide-react';
 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useUploadFile } from '@/hooks/useUploadFile';
 import { useToast } from '@/hooks/useToast';
 import { useUserSearch, type UserSearchResult } from '@/hooks/useUserSearch';
+import { useFollowPack } from '@/hooks/useFollowPack';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { LoginWithPrimal } from '@/components/auth/LoginWithPrimal';
 import { UserCard } from '@/components/UserCard';
@@ -19,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const FOLLOW_LIST_KIND = 39089;
 
@@ -65,9 +67,14 @@ function parseNpubsFromText(text: string): { valid: ParsedEntry[]; invalid: stri
 }
 
 export default function CreateFollowPack() {
+  const [searchParams] = useSearchParams();
+  const editDTag = searchParams.get('edit') ?? '';
+  const editPubkey = searchParams.get('p') ?? '';
+  const isEditMode = !!editDTag && !!editPubkey;
+
   useSeoMeta({
-    title: 'Follow Packs — Create & Share Nostr Follow Lists',
-    description: 'Create a curated Follow Pack of Nostr users to share with the world.',
+    title: isEditMode ? 'Edit Follow Pack' : 'Create Follow Pack',
+    description: isEditMode ? 'Edit your Nostr Follow Pack.' : 'Create a curated Follow Pack of Nostr users to share with the world.',
   });
 
   const { user } = useCurrentUser();
@@ -75,6 +82,11 @@ export default function CreateFollowPack() {
   const { mutateAsync: uploadFile, isPending: isUploading } = useUploadFile();
   const { toast } = useToast();
   const { results: searchResults, isSearching, search, clearResults } = useUserSearch();
+
+  // Load existing pack when in edit mode
+  const { data: existingPack, isLoading: isLoadingPack } = useFollowPack(
+    isEditMode ? { pubkey: editPubkey, identifier: editDTag } : { pubkey: '', identifier: '' }
+  );
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -86,9 +98,21 @@ export default function CreateFollowPack() {
   const [publishedDTag, setPublishedDTag] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showBulkInput, setShowBulkInput] = useState(false);
+  const [editLoaded, setEditLoaded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Populate form when existing pack loads in edit mode
+  useEffect(() => {
+    if (isEditMode && existingPack && !editLoaded) {
+      setName(existingPack.title);
+      setDescription(existingPack.description);
+      setCoverImageUrl(existingPack.image);
+      setEntries(existingPack.members.map((pk) => ({ pubkey: pk, npub: nip19.npubEncode(pk) })));
+      setEditLoaded(true);
+    }
+  }, [isEditMode, existingPack, editLoaded]);
 
   const handleSearchInput = useCallback((value: string) => {
     setSearchQuery(value);
@@ -182,7 +206,10 @@ export default function CreateFollowPack() {
   const handlePublish = useCallback(async () => {
     if (!name.trim()) { toast({ title: 'Name required', variant: 'destructive' }); return; }
     if (entries.length === 0) { toast({ title: 'Add at least one user', variant: 'destructive' }); return; }
-    const id = generateId();
+
+    // In edit mode, reuse the same d-tag so the event gets replaced
+    const id = isEditMode ? editDTag : generateId();
+
     const tags: string[][] = [['title', name.trim()], ['d', id]];
     if (coverImageUrl) tags.push(['image', coverImageUrl]);
     if (description.trim()) tags.push(['description', description.trim()]);
@@ -191,12 +218,12 @@ export default function CreateFollowPack() {
       await publishEvent({ kind: FOLLOW_LIST_KIND, content: '', tags, created_at: Math.floor(Date.now() / 1000) });
       setPublishedDTag(id);
       setPublished(true);
-      toast({ title: 'Follow Pack published!' });
+      toast({ title: isEditMode ? 'Follow Pack updated!' : 'Follow Pack published!' });
     } catch (err) {
       console.error('Publish error:', err);
       toast({ title: 'Publish failed', variant: 'destructive' });
     }
-  }, [name, description, coverImageUrl, entries, publishEvent, toast]);
+  }, [name, description, coverImageUrl, entries, publishEvent, toast, isEditMode, editDTag]);
 
   const handleCreateAnother = useCallback(() => {
     setName(''); setDescription(''); setCoverImageUrl(''); setEntries([]); setBulkInput('');
@@ -207,54 +234,71 @@ export default function CreateFollowPack() {
   if (!user) {
     return (
       <div className="min-h-screen gradient-bg-hero relative overflow-hidden">
-        {/* Background orbs */}
         <div className="absolute top-20 -left-32 w-96 h-96 rounded-full bg-cyan-500/10 blur-3xl animate-float" />
         <div className="absolute bottom-20 -right-32 w-80 h-80 rounded-full bg-sky-500/8 blur-3xl animate-float" style={{ animationDelay: '2s' }} />
-
         <div className="relative z-10 max-w-md mx-auto px-5 pt-24 pb-16">
           <div className="text-center space-y-8 animate-fade-in-up">
-            {/* Logo */}
             <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-cyan-400/20 to-sky-500/20 border border-cyan-400/20 glow animate-float">
               <Users className="w-11 h-11 text-cyan-400" />
             </div>
-
             <div className="space-y-3">
-              <h1 className="text-4xl font-bold tracking-tight text-white">
-                Follow Packs
-              </h1>
-              <p className="text-lg text-cyan-100/60 max-w-sm mx-auto leading-relaxed">
-                Curate and share lists of the best people on Nostr.
-              </p>
+              <h1 className="text-4xl font-bold tracking-tight text-white">Follow Packs</h1>
+              <p className="text-lg text-cyan-100/60 max-w-sm mx-auto leading-relaxed">Curate and share lists of the best people on Nostr.</p>
             </div>
-
-            {/* Login with Primal */}
             <div className="space-y-5 pt-2">
               <LoginWithPrimal className="w-full" />
-
               <div className="flex items-center gap-4">
                 <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                 <span className="text-xs text-white/30 uppercase tracking-widest font-medium">or</span>
                 <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
               </div>
-
               <LoginArea className="flex justify-center" />
             </div>
           </div>
         </div>
-
-        {/* Footer */}
         <div className="absolute bottom-6 left-0 right-0 text-center">
-          <p className="text-xs text-white/20">
-            Vibed with{' '}
-            <a href="https://shakespeare.diy" className="text-white/30 hover:text-white/50 transition-colors underline underline-offset-2">Shakespeare</a>
-          </p>
+          <p className="text-xs text-white/20">Vibed with{' '}<a href="https://shakespeare.diy" className="text-white/30 hover:text-white/50 transition-colors underline underline-offset-2">Shakespeare</a></p>
         </div>
+      </div>
+    );
+  }
+
+  // ── Loading edit data ──
+  if (isEditMode && isLoadingPack) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card/80 backdrop-blur-xl sticky top-0 z-40">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-sky-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <Users className="w-[18px] h-[18px] text-white" />
+              </div>
+              <h1 className="text-lg font-bold tracking-tight">Follow Packs</h1>
+            </Link>
+            <LoginArea className="max-w-60" />
+          </div>
+        </header>
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-7">
+          <Skeleton className="h-8 w-48" />
+          <div className="rounded-2xl border bg-card shadow-sm p-6 space-y-5">
+            <Skeleton className="h-11 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-36 w-full rounded-2xl" />
+          </div>
+          <div className="rounded-2xl border bg-card shadow-sm p-6 space-y-4">
+            <Skeleton className="h-6 w-32" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-xl" />
+            ))}
+          </div>
+        </main>
       </div>
     );
   }
 
   // ── Published success ──
   if (published) {
+    const pubkeyForNaddr = user?.pubkey ?? editPubkey;
     return (
       <div className="min-h-screen gradient-bg-hero relative overflow-hidden">
         <div className="absolute top-40 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-emerald-500/10 blur-3xl" />
@@ -263,14 +307,14 @@ export default function CreateFollowPack() {
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-emerald-500/15 border border-emerald-400/20">
               <CheckCircle2 className="w-10 h-10 text-emerald-400" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">Published!</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-white">{isEditMode ? 'Updated!' : 'Published!'}</h1>
             <p className="text-cyan-100/60 text-lg max-w-md mx-auto">
               Your Follow Pack <span className="text-white font-semibold">&ldquo;{name}&rdquo;</span> with {entries.length} user{entries.length > 1 ? 's' : ''} is now live on Nostr.
             </p>
-             <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-              {user && publishedDTag && (
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+              {pubkeyForNaddr && publishedDTag && (
                 <Button asChild size="lg" className="gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white border-0 shadow-lg">
-                  <Link to={`/${nip19.naddrEncode({ kind: FOLLOW_LIST_KIND, pubkey: user.pubkey, identifier: publishedDTag })}`}>
+                  <Link to={`/${nip19.naddrEncode({ kind: FOLLOW_LIST_KIND, pubkey: pubkeyForNaddr, identifier: publishedDTag })}`}>
                     <Eye className="w-5 h-5" /> View Pack
                   </Link>
                 </Button>
@@ -280,9 +324,11 @@ export default function CreateFollowPack() {
                   <Users className="w-4 h-4" /> My Packs
                 </Link>
               </Button>
-              <Button onClick={handleCreateAnother} variant="outline" size="lg" className="border-white/15 text-white hover:bg-white/10">
-                Create Another
-              </Button>
+              {!isEditMode && (
+                <Button onClick={handleCreateAnother} variant="outline" size="lg" className="border-white/15 text-white hover:bg-white/10">
+                  Create Another
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -290,7 +336,7 @@ export default function CreateFollowPack() {
     );
   }
 
-  // ── Main create form ──
+  // ── Main create/edit form ──
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -309,8 +355,13 @@ export default function CreateFollowPack() {
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24 space-y-7">
         {/* Title */}
         <div className="space-y-1 pt-1">
-          <h2 className="text-2xl font-bold tracking-tight">Create Follow Pack</h2>
-          <p className="text-muted-foreground">Curate a list of Nostr users to share with the world.</p>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            {isEditMode && <Pencil className="w-5 h-5 text-primary" />}
+            {isEditMode ? 'Edit Follow Pack' : 'Create Follow Pack'}
+          </h2>
+          <p className="text-muted-foreground">
+            {isEditMode ? 'Update your Follow Pack and republish it.' : 'Curate a list of Nostr users to share with the world.'}
+          </p>
         </div>
 
         {/* Pack Details */}
@@ -374,7 +425,7 @@ export default function CreateFollowPack() {
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-400 to-sky-500 flex items-center justify-center shadow-sm">
                     <Users className="w-3.5 h-3.5 text-white" />
                   </div>
-                  Add Users
+                  {isEditMode ? 'Members' : 'Add Users'}
                 </h3>
                 <p className="text-sm text-muted-foreground">Search for Nostr users or paste npubs.</p>
               </div>
@@ -404,7 +455,6 @@ export default function CreateFollowPack() {
                 </Button>
               </div>
 
-              {/* Search dropdown */}
               {searchResults.length > 0 && (
                 <div className="absolute z-50 w-full mt-2 bg-card border rounded-2xl shadow-xl overflow-hidden glow">
                   <div className="max-h-72 overflow-y-auto divide-y divide-border/50">
@@ -470,14 +520,14 @@ export default function CreateFollowPack() {
           </div>
         </div>
 
-        {/* Publish */}
+        {/* Publish / Update */}
         <div className="flex justify-end pt-2">
           <Button onClick={handlePublish} disabled={isPublishing || !name.trim() || entries.length === 0} size="lg"
             className="px-8 gap-2.5 text-base font-semibold rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white shadow-lg shadow-cyan-500/25 hover:shadow-cyan-400/35 transition-all active:scale-[0.98] border-0">
             {isPublishing ? (
-              <><Loader2 className="w-5 h-5 animate-spin" />Publishing...</>
+              <><Loader2 className="w-5 h-5 animate-spin" />{isEditMode ? 'Updating...' : 'Publishing...'}</>
             ) : (
-              <>Publish Follow Pack</>
+              isEditMode ? 'Update Follow Pack' : 'Publish Follow Pack'
             )}
           </Button>
         </div>

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { nip19 } from 'nostr-tools';
-import { Users, ArrowLeft, Loader2 } from 'lucide-react';
+import { Users, ArrowLeft, Loader2, Pencil } from 'lucide-react';
 
 import { useFollowPack } from '@/hooks/useFollowPack';
 import { useAuthor } from '@/hooks/useAuthor';
@@ -159,22 +159,36 @@ export function PackDetail({ pubkey, identifier }: PackDetailProps) {
               {pack.members.length} member{pack.members.length !== 1 ? 's' : ''}
             </Badge>
 
-            {/* Follow All button */}
+            {/* Action buttons */}
             {user && (
-              <Button
-                onClick={handleFollowAll}
-                disabled={isFollowing || followedAll}
-                size="sm"
-                className="ml-auto gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white border-0 shadow-sm"
-              >
-                {isFollowing ? (
-                  <><Loader2 className="w-3.5 h-3.5 animate-spin" />Following...</>
-                ) : followedAll ? (
-                  'Followed All'
-                ) : (
-                  <><Users className="w-3.5 h-3.5" />Follow All</>
+              <div className="ml-auto flex items-center gap-2">
+                {user.pubkey === pubkey && (
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 rounded-xl"
+                  >
+                    <Link to={`/create?edit=${encodeURIComponent(identifier)}&p=${encodeURIComponent(pubkey)}`}>
+                      <Pencil className="w-3.5 h-3.5" /> Edit
+                    </Link>
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  onClick={handleFollowAll}
+                  disabled={isFollowing || followedAll}
+                  size="sm"
+                  className="gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white border-0 shadow-sm"
+                >
+                  {isFollowing ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" />Following...</>
+                  ) : followedAll ? (
+                    'Followed All'
+                  ) : (
+                    <><Users className="w-3.5 h-3.5" />Follow All</>
+                  )}
+                </Button>
+              </div>
             )}
           </div>
 
