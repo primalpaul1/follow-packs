@@ -1,5 +1,7 @@
 import { type NLoginType, NUser, useNostrLogin } from '@nostrify/react/login';
+import { NConnectSigner, NSecSigner } from '@nostrify/nostrify';
 import { useNostr } from '@nostrify/react';
+import { nip19 } from 'nostr-tools';
 import { useCallback, useMemo } from 'react';
 
 import { useAuthor } from './useAuthor.ts';
@@ -12,8 +14,24 @@ export function useCurrentUser() {
     switch (login.type) {
       case 'nsec': // Nostr login with secret key
         return NUser.fromNsecLogin(login);
-      case 'bunker': // Nostr login with NIP-46 "bunker://" URI
-        return NUser.fromBunkerLogin(login, nostr);
+      case 'bunker': {
+        // Manually reconstruct the NConnectSigner instead of using
+        // NUser.fromBunkerLogin, which has a bug: it passes login.pubkey
+        // (the user's pubkey) to NConnectSigner instead of login.data.bunkerPubkey
+        // (the remote signer's pubkey). This causes signing requests to be
+        // addressed to the wrong pubkey, so the remote signer never sees them.
+        const decoded = nip19.decode(login.data.clientNsec);
+        if (decoded.type !== 'nsec') throw new Error('Invalid client nsec');
+        const clientSigner = new NSecSigner(decoded.data);
+        const relayGroup = nostr.group(login.data.relays);
+        const signer = new NConnectSigner({
+          relay: relayGroup,
+          pubkey: login.data.bunkerPubkey, // ← correct: the remote signer's pubkey
+          signer: clientSigner,
+          timeout: 60_000,
+        });
+        return new NUser(login.type, login.pubkey, signer);
+      }
       case 'extension': // Nostr login with NIP-07 browser extension
         return NUser.fromExtensionLogin(login);
       // Other login types can be defined here
