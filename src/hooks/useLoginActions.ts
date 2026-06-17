@@ -137,7 +137,7 @@ export function useLoginActions() {
     },
     // Get the relay URL for nostrconnect
     getRelayUrl(): string {
-      return 'wss://relay.nsec.app';
+      return 'wss://nrs.primal.net';
     },
     // Log out the current user
     async logout(): Promise<void> {
